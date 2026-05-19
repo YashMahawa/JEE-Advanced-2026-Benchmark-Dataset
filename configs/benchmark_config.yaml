@@ -1,0 +1,51 @@
+# List of OpenRouter model identifiers to evaluate.
+# Find identifiers at: https://openrouter.ai/models
+# Ensure the models support vision input.
+openrouter_models:
+  # Google
+  - "google/gemini-3.1-pro-preview"
+  - "google/gemini-3-flash-preview"
+  # Anthropic
+  - "anthropic/claude-opus-4.7"
+  - "anthropic/claude-sonnet-4.6"
+  - "anthropic/claude-haiku-4.5"
+  # OpenAI
+  - "openai/gpt-5.5"
+  - "openai/gpt-5.4"
+  # xAI
+  - "x-ai/grok-4.20"
+  - "x-ai/grok-4.3"
+  # Alibaba Qwen (open weights, vision + thinking)
+  - "qwen/qwen3-vl-235b-a22b-thinking"
+  # Zhipu GLM (open weights, vision + thinking)
+  - "z-ai/glm-4.6v"
+  # Mistral (vision, integrates Pixtral)
+  - "mistralai/mistral-medium-3-5"
+  # Moonshot Kimi (native multimodal)
+  - "moonshotai/kimi-k2.5"
+  # Google Gemma (open weights, vision)
+  - "google/gemma-4-31b-it"
+
+# Path to the metadata JSONL file and base directory for image paths.
+metadata_path: "images/metadata.jsonl"
+images_base_dir: "images"
+
+# Base directory where results for each model will be saved.
+results_base_dir: "results"
+
+# Optional: API request parameters
+# Maximum tokens for the response. Set high for thinking models (o3, Gemini Flash)
+# whose chain-of-thought can be long before the final <answer> tag.
+max_tokens: 32000
+# Timeout for each API request in seconds.
+# Set high enough for thinking models (o3, Gemini Flash Thinking) which can take longer.
+request_timeout: 600
+# Sampling temperature. 0 = deterministic (greedy decoding) for reproducibility.
+temperature: 0
+# Number of concurrent API requests. Increase for faster runs (watch rate limits).
+max_concurrent_requests: 8
+# Reasoning effort sent via OpenRouter's reasoning.effort for providers that
+# accept it: google/* (Gemini 3 thinking_level), qwen/* (Qwen3-VL thinking),
+# z-ai/* (GLM-V thinking). Values: minimal | low | medium | high
+# (provider-specific — Tencent Hy3, for example, only honors low/high).
+reasoning_effort: "high"
