@@ -153,6 +153,12 @@ def safe_model_name(model: str) -> str:
     return re.sub(r"[^A-Za-z0-9_.-]+", "_", model).strip("_")
 
 
+def public_error(exc: Exception) -> str:
+    text = str(exc)
+    text = re.sub(r"key=[^&\\s]+", "key=REDACTED", text)
+    return text
+
+
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--config", default="configs/benchmark_config.yaml")
@@ -207,7 +213,7 @@ def main():
                 "predicted_answer": None,
                 "parse_successful": False,
                 "api_call_successful": False,
-                "error": str(exc),
+                "error": public_error(exc),
                 "attempt": 1,
                 "previous_raw_response_on_reprompt": None,
                 "response_metadata": None,
