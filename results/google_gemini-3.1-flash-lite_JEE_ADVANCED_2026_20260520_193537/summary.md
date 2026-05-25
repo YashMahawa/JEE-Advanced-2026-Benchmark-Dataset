@@ -7,9 +7,9 @@
   "overall_partial_correct": 0,
   "overall_incorrect_choice": 0,
   "overall_skipped": 0,
-  "overall_api_parse_failures": 96,
-  "total_questions_processed": 96,
-  "total_possible_score_for_processed_questions": 348,
+  "overall_api_parse_failures": 101,
+  "total_questions_processed": 101,
+  "total_possible_score_for_processed_questions": 368,
   "unmapped_section_questions": 0,
   "section_breakdown": {
     "Chemistry": {
@@ -17,7 +17,7 @@
       "correct": 0,
       "incorrect": 0,
       "skipped": 0,
-      "api_parse_failures": 31,
+      "api_parse_failures": 34,
       "partial_correct": 0
     },
     "Math": {
@@ -33,19 +33,19 @@
       "correct": 0,
       "incorrect": 0,
       "skipped": 0,
-      "api_parse_failures": 32,
+      "api_parse_failures": 34,
       "partial_correct": 0
     }
   },
   "question_type_breakdown": {
     "MCQ_MULTIPLE_CORRECT": {
-      "count": 26,
+      "count": 27,
       "score": 0,
       "correct_full": 0,
       "partial_correct": 0,
       "incorrect_choice": 0,
       "skipped": 0,
-      "api_parse_failures": 26,
+      "api_parse_failures": 27,
       "max_score_per_question": 4
     },
     "MCQ_SINGLE_CORRECT": {
@@ -59,13 +59,13 @@
       "max_score_per_question": 3
     },
     "INTEGER": {
-      "count": 34,
+      "count": 38,
       "score": 0,
       "correct_full": 0,
       "partial_correct": 0,
       "incorrect_choice": 0,
       "skipped": 0,
-      "api_parse_failures": 34,
+      "api_parse_failures": 38,
       "max_score_per_question": 4
     }
   }
