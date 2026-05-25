@@ -1,4 +1,4 @@
-# Evaluation Summary: google_gemini-3.1-flash-lite_JEE_ADVANCED_2026_20260525_003335
+# Evaluation Summary: google_gemma-4-26b-a4b-it_JEE_ADVANCED_2026_20260525_004444
 
 ```json
 {
@@ -7,9 +7,9 @@
   "overall_partial_correct": 0,
   "overall_incorrect_choice": 0,
   "overall_skipped": 0,
-  "overall_api_parse_failures": 1,
-  "total_questions_processed": 1,
-  "total_possible_score_for_processed_questions": 4,
+  "overall_api_parse_failures": 3,
+  "total_questions_processed": 3,
+  "total_possible_score_for_processed_questions": 12,
   "unmapped_section_questions": 0,
   "section_breakdown": {
     "Physics": {
@@ -17,12 +17,12 @@
       "correct": 0,
       "incorrect": 0,
       "skipped": 0,
-      "api_parse_failures": 1,
+      "api_parse_failures": 3,
       "partial_correct": 0
     }
   },
   "question_type_breakdown": {
-    "INTEGER": {
+    "MCQ_MULTIPLE_CORRECT": {
       "count": 1,
       "score": 0,
       "correct_full": 0,
@@ -30,6 +30,16 @@
       "incorrect_choice": 0,
       "skipped": 0,
       "api_parse_failures": 1,
+      "max_score_per_question": 4
+    },
+    "INTEGER": {
+      "count": 2,
+      "score": 0,
+      "correct_full": 0,
+      "partial_correct": 0,
+      "incorrect_choice": 0,
+      "skipped": 0,
+      "api_parse_failures": 2,
       "max_score_per_question": 4
     }
   }
