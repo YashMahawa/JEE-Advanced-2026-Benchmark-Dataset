@@ -30,113 +30,94 @@ def load_api_key(key_name="OPENROUTER_API_KEY"):
 
 def parse_llm_answer(response_text: str, question_type: str = "MCQ_SINGLE_CORRECT") -> list[str] | str | None:
     """
-    Parses the LLM response text to extract answers within <answer> tags.
-    The parsing logic adapts based on the question_type.
-
-    Handles:
-    - MCQ_SINGLE_CORRECT: Single option identifier (integer like "1", "2" or letter like "A", "B").
-    - INTEGER: Single numerical value, which can be an integer or a decimal (e.g., "5", "12.75", "0.5").
-    - MCQ_MULTIPLE_CORRECT: Multiple option identifiers (integers or letters), comma-separated.
-    - The specific string "SKIP" for skipped questions (case-insensitive content within tags).
-    - Potential newlines and varied spacing within the tags.
-
-    Args:
-        response_text (str): The raw text response from the LLM.
-        question_type (str): The type of question, e.g., "MCQ_SINGLE_CORRECT",
-                             "MCQ_MULTIPLE_CORRECT", "INTEGER".
-                             Defaults to "MCQ_SINGLE_CORRECT".
-
-    Returns:
-        list[str] | str | None:
-            - A list containing string answer(s) if found and valid.
-              (e.g., ["1"], ["A"], ["12.75"], ["A", "C"])
-            - The string "SKIP" if the response indicates a skip.
-            - None if parsing fails (no tag, invalid content, type mismatch, etc.).
+    Robustly parses the LLM response text to extract answers.
+    Prioritizes <answer> tags but has several fallbacks for advanced models.
     """
     if not response_text:
         return None
 
-    # Strip provider-specific wrapper tokens (e.g. GLM's <|begin_of_box|>...<|end_of_box|>,
-    # Qwen's <|im_*|>, etc.) so the <answer> tag matches even when nested inside them.
-    cleaned_text = re.sub(r"<\|[^|]*\|>", "", response_text)
+    # 1. Pre-cleaning
+    cleaned_text = re.sub(r"<\|[^|]*\|>", "", response_text) # Provider tokens
+    cleaned_text = cleaned_text.replace("\u200b", "").strip()
 
-    # Check for exact SKIP response first (case-insensitive for the tag and content)
-    # Using regex to be more flexible with whitespace around SKIP
-    skip_match = re.search(r"<answer>\s*SKIP\s*</answer>", cleaned_text, re.IGNORECASE)
-    if skip_match or re.fullmatch(r"\s*SKIP\s*", cleaned_text, re.IGNORECASE):
-        logging.info(f"Parsed answer as SKIP for question_type: {question_type}.")
+    # 2. Check for SKIP
+    if re.search(r"<answer>\s*SKIP\s*</answer>", cleaned_text, re.I) or \
+       re.search(r"(?:Final Answer|Answer):\s*SKIP", cleaned_text, re.I) or \
+       re.fullmatch(r"\s*SKIP\s*", cleaned_text, re.I):
         return "SKIP"
 
-    match = re.search(r"<answer>(.*?)</answer>", cleaned_text, re.DOTALL | re.IGNORECASE)
-
-    # Fallback: model emitted a bare answer with no <answer> tag — accept it only when
-    # the (cleaned) response is short and looks like nothing but the answer itself.
-    # Prevents false positives from long explanations that happen to contain a digit.
-    if not match:
-        bare = cleaned_text.strip()
-        if bare and len(bare) <= 30:
-            extracted_content = bare
-        else:
-            logging.warning(f"Could not find <answer> tag in response for question_type: {question_type} in response: '{response_text[:200]}...'")
-            return None
-    else:
-        extracted_content = match.group(1).strip()
+    # 3. Extract content using multiple strategies
+    extracted_content = None
+    
+    # Strategy A: Standard <answer> tags
+    tag_match = re.search(r"<answer>(.*?)</answer>", cleaned_text, re.DOTALL | re.I)
+    if tag_match:
+        extracted_content = tag_match.group(1).strip()
+    
+    # Strategy B: "Final Answer: ..." or "Answer: ..." labels
     if not extracted_content:
-        logging.warning(f"Found <answer> tag but content is empty for question_type: {question_type}.")
+        label_match = re.search(r"(?:Final\s+)?Answer\s*:\s*(.*)$", cleaned_text, re.I | re.MULTILINE)
+        if label_match:
+            extracted_content = label_match.group(1).strip()
+            # If it's too long, it might just be the start of an explanation
+            if len(extracted_content) > 100:
+                extracted_content = None
+
+    # Strategy C: Short responses (bare answers)
+    if not extracted_content and len(cleaned_text) <= 50:
+        extracted_content = cleaned_text
+
+    # Strategy D: Bolded text at the very end (e.g., **(A)** or **A, B**)
+    if not extracted_content:
+        bold_matches = re.findall(r"\*\*\(?([A-D](?:\s*,\s*[A-D])*)\)?\*\*", cleaned_text)
+        if bold_matches:
+            extracted_content = bold_matches[-1] # Take the last one
+
+    if not extracted_content:
+        logging.warning(f"Could not extract answer content for {question_type} from: {response_text[:100]}...")
         return None
 
-    potential_answers_str_list = [item.strip() for item in extracted_content.split(',')]
-    parsed_answers_final = []
+    # 4. Clean the extracted content
+    # Remove prefix text like "Option ", "(", ")", "."
+    extracted_content = re.sub(r"^(?:Option|The\s+correct\s+answer\s+is|Answer\s+is)\s*:?\s*", "", extracted_content, flags=re.I)
+    extracted_content = extracted_content.strip("()[] \t\n\r.")
 
-    for ans_str_raw in potential_answers_str_list:
-        ans_str = ans_str_raw.strip()
-        if not ans_str: # Skip empty strings that might result from "1, ,2" or trailing commas
-            continue
-
-        if question_type == "INTEGER":
-            try:
-                # Try to parse as float to validate it's a number (integer or decimal).
-                # The value is kept as a string to preserve original formatting (e.g., "0.50", "5.0")
-                # for exact string comparison with ground truth if needed, and for consistent type handling.
-                float(ans_str) 
-                parsed_answers_final.append(ans_str)
-            except ValueError:
-                logging.warning(f"Could not parse '{ans_str}' as a valid number (integer or decimal) for INTEGER type. Full content: '{extracted_content}'")
-                return None # If any part is not a valid number for INTEGER type, fail parsing.
-        
-        elif question_type in ["MCQ_SINGLE_CORRECT", "MCQ_MULTIPLE_CORRECT"]:
-            # For MCQs, accept single-digit numbers (1-9) or letters A-D.
-            if re.fullmatch(r"[1-9]", ans_str): # Single digit options
-                parsed_answers_final.append(ans_str)
-            elif re.fullmatch(r"[a-dA-D]", ans_str): # Letter options A-D
-                parsed_answers_final.append(ans_str.upper())
-            else:
-                logging.warning(f"Could not parse '{ans_str}' as a valid MCQ option (expected 1-9 or A-D). Full content: '{extracted_content}'")
-                return None
-        else: # Should not happen if question_type is validated before calling
-            logging.error(f"Unknown question_type '{question_type}' encountered in parse_llm_answer logic.")
-            return None
-
-
-    if not parsed_answers_final: # If list is empty after processing (e.g. content was just commas)
-        logging.warning(f"No valid answer items found after parsing content: '{extracted_content}' for question_type: {question_type}.")
-        return None
-
-    # Apply rules based on question_type for number of answers
-    if question_type in ["MCQ_SINGLE_CORRECT", "INTEGER"]:
-        if len(parsed_answers_final) == 1:
-            return parsed_answers_final # Returns list[str] with one element
+    # 5. Question-type specific parsing
+    parsed_items = []
+    
+    if question_type == "INTEGER":
+        # Handle ranges like "10 to 12" or "10-12"
+        range_match = re.search(r"(\d+(?:\.\d+)?)\s*(?:to|TO|-)\s*(\d+(?:\.\d+)?)", extracted_content)
+        if range_match:
+            # For simplicity, we just return the first number, 
+            # the evaluator handles ranges if ground truth is a range.
+            parsed_items = [range_match.group(1)]
         else:
-            logging.warning(f"Expected single answer for {question_type}, but found {len(parsed_answers_final)} items: {parsed_answers_final}. Content: '{extracted_content}'")
-            return None
-    elif question_type == "MCQ_MULTIPLE_CORRECT":
-        # For multiple correct, any number of valid items is acceptable.
-        # Return them sorted and unique.
-        return sorted(list(set(parsed_answers_final)))
-    else:
-        # This case should ideally be caught by earlier checks or input validation.
-        logging.error(f"Unknown question_type '{question_type}' provided to parse_llm_answer at final stage.")
+            # Extract all possible numbers
+            nums = re.findall(r"-?\d+(?:\.\d+)?", extracted_content)
+            if nums:
+                parsed_items = [nums[0]] # Take the first number found
+
+    elif question_type in ["MCQ_SINGLE_CORRECT", "MCQ_MULTIPLE_CORRECT"]:
+        # Extract letters A-D or numbers 1-9
+        # Handle comma or space separation
+        items = re.split(r"[,/;\s]+", extracted_content)
+        for item in items:
+            clean_item = item.strip("()[] .")
+            if re.fullmatch(r"[A-D]", clean_item, re.I):
+                parsed_items.append(clean_item.upper())
+            elif re.fullmatch(r"[1-9]", clean_item):
+                parsed_items.append(clean_item)
+
+    if not parsed_items:
         return None
+
+    # 6. Final Validation
+    if question_type in ["MCQ_SINGLE_CORRECT", "INTEGER"]:
+        return [parsed_items[0]]
+    else:
+        return sorted(list(set(parsed_items)))
+
 
 # Example Usage (for testing)
 if __name__ == '__main__':
